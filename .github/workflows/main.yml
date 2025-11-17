@@ -1,0 +1,52 @@
+name: CI
+
+on: workflow_dispatch
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 9999
+
+    steps:
+    - name: Setup files
+      env: 
+        SSHD_PORT: ${{ secrets.SSHD_PORT }}
+        SSHD_USER: ${{ secrets.SSHD_USER }}
+        SSHD_PASS: ${{ secrets.SSHD_PASS }}
+        SSHD_KEY: ${{ secrets.SSHD_KEY }}
+        CFD_TUNNEL: ${{ secrets.CFD_TUNNEL }}
+        CFD_CRED: ${{ secrets.CFD_CRED }}
+        CFD_CERT: ${{ secrets.CFD_CERT }}
+        CFD_DOMAIN: ${{ secrets.CFD_DOMAIN }}
+      run: |
+        sudo mkdir -p /var/run/sshd
+        echo "PasswordAuthentication yes" | sudo tee -a /etc/ssh/sshd_config
+        echo "TCPKeepAlive yes" | sudo tee -a /etc/ssh/sshd_config
+        sudo adduser $SSHD_USER --gecos "First Last,RoomNumber,WorkPhone,HomePhone" --disabled-password
+        sudo usermod -aG sudo $SSHD_USER
+        echo "$SSHD_USER:$SSHD_PASS" | sudo chpasswd
+        echo "$SSHD_USER ALL=(ALL) NOPASSWD:ALL" | sudo EDITOR="tee -a" visudo
+        sudo mkdir "/home/${SSHD_USER}/.ssh" && sudo chmod 755 "/home/${SSHD_USER}/.ssh"
+        echo $SSHD_KEY | sudo tee "/home/${SSHD_USER}/.ssh/authorized_keys" && sudo chmod 600 "/home/${SSHD_USER}/.ssh/authorized_keys" && sudo chown $SSHD_USER:$SSHD_USER -R "/home/${SSHD_USER}/.ssh"
+        sudo mkdir -p "/home/${SSHD_USER}/.config" && echo -e "dHVubmVsOiBfVFVOTkVMCmNyZWRlbnRpYWxzLWZpbGU6IC9ob21lL19VU0VSLy5jb25maWcvX1RVTk5FTC5qc29uCgppbmdyZXNzOgogIC0gaG9zdG5hbWU6IF9ET01BSU4KICAgIHNlcnZpY2U6IHNzaDovL2xvY2FsaG9zdDoyMgogIC0gc2VydmljZTogaHR0cF9zdGF0dXM6NDA0" | base64 -d | sudo tee "/home/${SSHD_USER}/.config/site.yml" && echo -e $CFD_CRED | base64 -d | sudo tee "/home/${SSHD_USER}/.config/${CFD_TUNNEL}.json" && echo -e $CFD_CERT | base64 -d | sudo tee "/home/${SSHD_USER}/.config/cert.pem" && sudo chown $SSHD_USER:$SSHD_USER -R "/home/${SSHD_USER}/.config"
+        sudo sed -i 's/_TUNNEL/'"$CFD_TUNNEL"'/' "/home/${SSHD_USER}/.config/site.yml"
+        sudo sed -i 's/_USER/'"$SSHD_USER"'/' "/home/${SSHD_USER}/.config/site.yml"
+        sudo sed -i 's/_DOMAIN/'"$CFD_DOMAIN"'/' "/home/${SSHD_USER}/.config/site.yml"
+        sudo service ssh restart
+        sudo rm -rf /usr/local/share/boost
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+        sudo apt-get remove -y '^ghc-*'
+        sudo apt-get remove -y '^dotnet-.*'
+        sudo apt-get remove -y '^llvm-.*'
+        sudo apt-get remove -y 'php.*'
+        sudo apt-get remove -y azure-cli google-cloud-sdk hhvm google-chrome-stable firefox powershell mono-devel
+        sudo apt-get autoremove -y
+        sudo apt-get clean
+        sudo rm -rf /usr/share/dotnet/
+        curl -sL https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest | grep -wo "https.*ffmpeg-n.*-gpl-4.4.tar.xz"| xargs curl -sL | sudo tar -xvJ --wildcards --strip-components 2 -C /usr/bin ffmpeg*/bin/ff*
+        curl -OL https://downloads.rclone.org/rclone-current-linux-amd64.deb && sudo dpkg -i rclone-current-linux-amd64.deb && rm rclone-*.deb
+        curl -s https://api.github.com/repos/cloudflare/cloudflared/releases/latest | grep -m 1 -wo "https.*cloudflared-linux.*amd64" | xargs curl -o cloudflared -L && chmod +x cloudflared && sudo mv cloudflared /usr/bin
+        sudo -u $SSHD_USER cloudflared tunnel --config "/home/${SSHD_USER}/.config/site.yml" --origincert "/home/${SSHD_USER}/.config/cert.pem" run

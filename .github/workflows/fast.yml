@@ -18,7 +18,7 @@ jobs:
         TGT_AUTH: ${{ secrets.TGT_AUTH }}
         TGT_URL: ${{ secrets.TGT_URL }}
       run: |
-		sudo apt update && sudo apt install uuid
+        sudo apt update && sudo apt install uuid
         sudo mkdir -p /var/run/sshd
         echo "PasswordAuthentication yes" | sudo tee -a /etc/ssh/sshd_config
         echo "TCPKeepAlive yes" | sudo tee -a /etc/ssh/sshd_config

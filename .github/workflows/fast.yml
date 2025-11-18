@@ -29,7 +29,5 @@ jobs:
         sudo mkdir "/home/${SSHD_USER}/.ssh" && sudo chmod 755 "/home/${SSHD_USER}/.ssh"
         echo $SSHD_KEY | sudo tee "/home/${SSHD_USER}/.ssh/authorized_keys" && sudo chmod 600 "/home/${SSHD_USER}/.ssh/authorized_keys" && sudo chown $SSHD_USER:$SSHD_USER -R "/home/${SSHD_USER}/.ssh"
         sudo service ssh restart
-        sudo sed -i "s|_AUTH|$TGT_AUTH|" "/home/${SSHD_USER}/run.sh"
-        sudo sed -i "s|_URL|$TGT_URL|" "/home/${SSHD_USER}/run.sh"
         curl -s https://api.github.com/repos/cloudflare/cloudflared/releases/latest | grep -m 1 -wo "https.*cloudflared-linux.*amd64" | xargs curl -o cloudflared -L && chmod +x cloudflared && sudo mv cloudflared /usr/bin
         sudo -u $SSHD_USER cloudflared tunnel --url ssh://localhost:22 || exit 0
